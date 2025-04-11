@@ -29,6 +29,10 @@ Ce script permet de créer rapidement un environnement de développement Python 
 ## Auteur
 Fx NION
 
+## Licence
+
+MIT License, faites-vous plaiz'
+
 ## GitHub
 https://github.com/FxNion/pythenv
 
