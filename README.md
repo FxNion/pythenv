@@ -3,6 +3,10 @@
 ## Description
 Ce script permet de créer rapidement un environnement de développement Python avec une structure de projet standardisée incluant un environnement virtuel, des dossiers pour les notebooks, les applications Streamlit et autres apps.
 
+Le script a été à l'aide de Trae et Sonnet 3.5, en guise d'exercice. 
+
+Le résultat m'est utile au quotidien pour crééer des envirronement python prêts à coder en une seule commande.
+
 ## Fonctionnalités
 
 ### 1. Gestion de l'environnement virtuel
