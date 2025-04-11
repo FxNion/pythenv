@@ -1,0 +1,453 @@
+#!/bin/bash
+
+# Description:
+# Ce script permet de créer rapidement un environnement de développement Python
+# avec une structure de projet standardisée incluant un environnement virtuel,
+# des dossiers pour les notebooks, les applications Streamlit et autres apps.
+#
+# Auteur: Fx NION
+# GitHub: https://github.com/FxNion
+#
+# Dernière modification: 2024-01-09
+# Modèle LLM: Claude-3.5-Sonnet
+# 
+# Prompt de génération:
+# "Créer un script bash robuste pour configurer un environnement de développement Python complet.
+#
+# Spécifications générales :
+# 1. Gestion de l'environnement virtuel :
+#    - Création et activation automatique d'un environnement Python dédié
+#    - Mise à jour automatique de pip et installation des dépendances
+#    - Gestion des liens symboliques pour faciliter l'accès
+#
+# 2. Structure du projet :
+#    - Arborescence standardisée avec dossiers dédiés :
+#      * /notebooks : Pour les Jupyter notebooks
+#      * /streamlit : Applications Streamlit
+#      * /apps : Applications CLI et utilitaires
+#      * /flask : Applications web Flask
+#      * /fastapi : APIs avec FastAPI
+#    - Fichiers exemples pour chaque type d'application
+#    - Gestion du requirements.txt avec versions spécifiées
+#
+# 3. Vérification et validation :
+#    - Contrôle des prérequis (Python3, VS Code)
+#    - Vérification exhaustive de la configuration existante
+#    - Validation de la structure des dossiers et fichiers
+#    - Contrôle des liens symboliques
+#
+# 4. Interface utilisateur :
+#    - Retours visuels avec spinners pour les opérations longues
+#    - Messages colorés et émojis pour une meilleure lisibilité
+#    - Affichage en temps réel de la progression
+#    - Gestion des erreurs avec messages explicites
+#
+# 5. Fonctionnalités avancées :
+#    - Support des chemins absolus et relatifs
+#    - Proposition d'ajout au PATH système
+#    - Intégration automatique avec VS Code
+#    - Gestion des cas où le projet existe déjà
+#
+# Organisation du code :
+# - Fonctions utilitaires pour l'affichage et la gestion des erreurs
+# - Procédures distinctes pour la création et la vérification
+# - Séparation claire entre la logique de création et de validation
+# - Gestion modulaire des fichiers exemples
+#
+# Comportement attendu :
+# 1. Si le dossier n'existe pas :
+#    - Création complète de la structure
+#    - Installation de l'environnement virtuel
+#    - Génération des fichiers exemples
+#
+# 2. Si le dossier existe :
+#    - Vérification exhaustive de la configuration
+#    - Validation de chaque composant
+#    - Activation de l'environnement si valide"
+
+# Couleurs ANSI
+GREEN="\033[0;32m"
+BLUE="\033[0;34m"
+NC="\033[0m" # No Color
+SPINNER=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
+
+# Fonction pour afficher un message de succès
+show_success() {
+    echo -e "${GREEN}$1${NC}"
+}
+
+# Fonction pour afficher une notification
+show_notification() {
+    echo -e "${BLUE}$1${NC}"
+}
+
+# Fonction pour afficher les messages d'erreur
+show_error() {
+    echo -e "\033[0;31mErreur: $1\033[0m" >&2
+    exit 1
+}
+
+# Fonction pour afficher le spinner avec le message
+show_spinner() {
+    local pid=$1
+    local message=$2
+    local i=0
+    printf "\r"  # Retour au début de la ligne
+    while kill -0 $pid 2>/dev/null; do
+        printf "\r${BLUE}${SPINNER[$i]} %s${NC}\033[K" "$message"
+        i=$(( (i + 1) % 10 ))
+        sleep 0.1
+    done
+    wait $pid
+    local exit_status=$?
+    if [ $exit_status -eq 0 ]; then
+        printf "\r${GREEN}✓ %s${NC}\033[K\n" "$message"
+    else
+        return $exit_status
+    fi
+}
+
+# Vérification des prérequis
+show_notification "🔍 Vérification des prérequis..."
+(command -v python3 >/dev/null 2>&1) || show_error "Python3 n'est pas installé"
+(command -v code >/dev/null 2>&1) || show_error "Visual Studio Code n'est pas installé"
+show_success "✓ Prérequis validés"
+
+# Vérification des paramètres
+PROJET="$1"
+
+if [ -z "$PROJET" ]; then
+    show_error "Usage: pythenv <nom_projet>"
+fi
+if [[ ! "$PROJET" = /* ]]; then
+    PROJET="$(pwd)/$PROJET"
+fi
+
+# Vérification si le projet existe déjà avec la configuration attendue
+show_notification "🔍 Vérification de la configuration existante..."
+
+# Vérification du dossier principal
+if [ ! -d "$PROJET" ]; then
+    show_success "✓ Création d'un nouveau projet"
+    # Création d'un nouveau projet
+    show_notification "📁 Création de la structure du projet..."
+    (mkdir -p "$PROJET") || show_error "Impossible de créer le dossier $PROJET"
+    (cd "$PROJET") || show_error "Impossible d'accéder au dossier $PROJET"
+    echo -e "${GREEN}✓ Structure du projet créée${NC}"
+else
+    # Si le dossier existe, on vérifie la configuration complète
+    echo -e "${BLUE}🔍 Vérification détaillée de la configuration existante...${NC}"
+    
+    # Vérification de l'environnement virtuel
+    if [ ! -d "$PROJET/$(basename "$PROJET")-venv" ]; then
+        show_error "Environnement virtuel manquant"
+    fi
+    show_success "✓ Environnement virtuel trouvé"
+    
+    # Vérification des dossiers requis
+    if [ ! -d "$PROJET/notebooks" ]; then
+        show_error "Dossier notebooks manquant"
+    fi
+    show_success "✓ Dossier notebooks présent"
+    
+    if [ ! -d "$PROJET/streamlit" ]; then
+        show_error "Dossier streamlit manquant"
+    fi
+    show_success "✓ Dossier streamlit présent"
+    
+    if [ ! -d "$PROJET/apps" ]; then
+        show_error "Dossier apps manquant"
+    fi
+    if [ ! -f "$PROJET/apps/cli_example.py" ]; then
+        show_error "Fichier cli_example.py manquant"
+    fi
+    show_success "✓ Dossier apps et CLI example présents"
+    
+    if [ ! -d "$PROJET/flask" ]; then
+        show_error "Dossier flask manquant"
+    fi
+    show_success "✓ Dossier flask présent"
+    
+    if [ ! -d "$PROJET/fastapi" ]; then
+        show_error "Dossier fastapi manquant"
+    fi
+    show_success "✓ Dossier fastapi présent"
+    
+    # Vérification du fichier requirements.txt
+    if [ ! -f "$PROJET/requirements.txt" ]; then
+        show_error "Fichier requirements.txt manquant"
+    fi
+    show_success "✓ Fichier requirements.txt présent"
+    
+    # Vérification du lien symbolique venv
+    if [ ! -L "$PROJET/venv" ] || [ "$(readlink "$PROJET/venv")" != "$(basename "$PROJET")-venv" ]; then
+        show_error "Lien symbolique venv mal configuré ou manquant"
+    fi
+    show_success "✓ Lien symbolique venv correctement configuré"
+    
+    show_success "✓ Configuration existante entièrement validée"
+    cd "$PROJET" || show_error "Impossible d'accéder au dossier $PROJET"
+    show_notification "🔌 Activation de l'environnement virtuel..."
+    source "$(basename "$PROJET")-venv/bin/activate" && show_success "✓ Environnement virtuel activé"
+    show_success "✨ Lancement de VS Code..."
+    code .
+    exit 0
+fi
+
+# Création d'un nouveau projet
+show_notification "🔧 Création de l'environnement virtuel..."
+(python3 -m venv "$PROJET/$(basename "$PROJET")-venv") & show_spinner $! "Configuration de l'environnement Python"
+
+# Mise à jour de pip et installation des dépendances
+show_notification "📦 Mise à jour de pip et installation des dépendances..."
+("$PROJET/$(basename "$PROJET")-venv/bin/python3" -m pip install --upgrade pip >/dev/null 2>&1 && \
+"$PROJET/$(basename "$PROJET")-venv/bin/python3" -m pip install -r "$PROJET/requirements.txt" >/dev/null 2>&1) & show_spinner $! "Installation des dépendances"
+
+# Création des dossiers requis
+show_notification "📂 Création des dossiers du projet..."
+(cd "$PROJET" && mkdir -p notebooks streamlit apps flask fastapi && cat > requirements.txt << 'EOL'
+flask==3.0.0
+fastapi==0.109.0
+uvicorn==0.27.0
+streamlit==1.31.0
+EOL
+ln -s "$(basename "$PROJET")-venv" venv) & show_spinner $! "Création des dossiers et fichiers du projet"
+show_success "✓ Structure du projet créée"
+
+# Fonctions pour la création des fichiers d'exemple
+
+create_cli_example() {
+    local PROJET=$1
+    cat > "$PROJET/apps/cli_example.py" << 'EOL'
+#!/usr/bin/env python3
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description='Example CLI application')
+    parser.add_argument('--verbose', action='store_true', help='Afficher des messages détaillés')
+    parser.add_argument('-n', '--name', default='World', help='Nom à utiliser dans le message')
+    
+    args = parser.parse_args()
+    
+    if args.verbose:
+        print(f'Mode verbose activé')
+        print(f'Nom fourni: {args.name}')
+    
+    print(f'Hello, {args.name}!')
+
+if __name__ == '__main__':
+    main()
+EOL
+    chmod +x "$PROJET/apps/cli_example.py"
+}
+
+create_notebook_example() {
+    local PROJET=$1
+    cat > "$PROJET/notebooks/exemple.ipynb" << 'EOL'
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# 📊 Notebook de Démonstration\n",
+    "\n",
+    "Ce notebook montre les fonctionnalités de base de Jupyter avec Python, notamment :\n",
+    "- Manipulation de données avec Pandas\n",
+    "- Calculs numériques avec NumPy\n",
+    "- Visualisation de données\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "\n",
+    "# Création d'un DataFrame d'exemple\n",
+    "np.random.seed(42)\n",
+    "dates = pd.date_range(start='2024-01-01', periods=10, freq='D')\n",
+    "data = {\n",
+    "    'Temperature': np.random.normal(20, 5, 10),\n",
+    "    'Humidite': np.random.uniform(60, 90, 10),\n",
+    "    'Pression': np.random.normal(1013, 5, 10)\n",
+    "}\n",
+    "df = pd.DataFrame(data, index=dates)\n",
+    "df.head()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 📈 Visualisation des données\n",
+    "\n",
+    "Créons quelques graphiques pour visualiser nos données météorologiques."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Création d'un graphique multiple\n",
+    "fig, axes = plt.subplots(3, 1, figsize=(10, 12))\n",
+    "fig.suptitle('Données Météorologiques')\n",
+    "\n",
+    "# Température\n",
+    "df['Temperature'].plot(ax=axes[0], marker='o')\n",
+    "axes[0].set_title('Température')\n",
+    "axes[0].set_ylabel('°C')\n",
+    "\n",
+    "# Humidité\n",
+    "df['Humidite'].plot(ax=axes[1], marker='s', color='green')\n",
+    "axes[1].set_title('Humidité')\n",
+    "axes[1].set_ylabel('%')\n",
+    "\n",
+    "# Pression\n",
+    "df['Pression'].plot(ax=axes[2], marker='^', color='red')\n",
+    "axes[2].set_title('Pression')\n",
+    "axes[2].set_ylabel('hPa')\n",
+    "\n",
+    "plt.tight_layout()\n",
+    "plt.show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 📊 Analyse statistique\n",
+    "\n",
+    "Calculons quelques statistiques descriptives sur nos données."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Statistiques descriptives\n",
+    "df.describe()"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.8.0"
+  }
+ }
+}
+EOL
+}
+
+create_flask_example() {
+    local PROJET=$1
+    cat > "$PROJET/flask/app.py" << 'EOL'
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def hello():
+    return 'Hello, World!'
+
+if __name__ == '__main__':
+    app.run(debug=True)
+EOL
+}
+
+create_fastapi_example() {
+    local PROJET=$1
+    cat > "$PROJET/fastapi/main.py" << 'EOL'
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+async def hello():
+    return {"message": "Hello, World!"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+EOL
+}
+
+create_streamlit_example() {
+    local PROJET=$1
+    cat > "$PROJET/streamlit/app.py" << 'EOL'
+import streamlit as st
+
+st.title("Hello, World!")
+st.write("Bienvenue sur votre application Streamlit !")
+EOL
+}
+
+# Création des fichiers exemples
+show_notification "📝 Création des fichiers exemples..."
+create_notebook_example "$PROJET"
+create_flask_example "$PROJET"
+create_fastapi_example "$PROJET"
+create_streamlit_example "$PROJET"
+create_cli_example "$PROJET"
+show_success "✓ Fichiers exemples créés"
+
+# Création de l'environnement virtuel
+show_notification "🔧 Création de l'environnement virtuel..."
+(python3 -m venv "$PROJET/$(basename "$PROJET")-venv") & show_spinner $! "Configuration de l'environnement Python"
+
+# Activation de l'environnement virtuel
+show_notification "🔌 Activation de l'environnement virtuel..."
+source "$PROJET/$(basename "$PROJET")-venv/bin/activate" && show_success "✓ Environnement virtuel activé"
+
+# Mise à jour de pip et installation des dépendances
+show_notification "📦 Mise à jour de pip et installation des dépendances..."
+(pip install --upgrade pip >/dev/null 2>&1 && \
+pip install -r "$PROJET/requirements.txt" >/dev/null 2>&1) & show_spinner $! "Installation des dépendances"
+
+# Création des dossiers requis
+show_notification "📂 Création des dossiers du projet..."
+(cd "$PROJET" && mkdir -p notebooks streamlit apps flask fastapi && touch requirements.txt && ln -s "$(basename "$PROJET")-venv" venv) & show_spinner $! "Création des dossiers et fichiers du projet"
+
+# Vérification si c'est la première exécution
+PROFILE_FILE="$HOME/.profile"
+SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+
+if ! grep -q "# Ajout du script pythenv au PATH" "$PROFILE_FILE" 2>/dev/null; then
+    show_notification "⚙️  Configuration du PATH"
+    echo -n "Voulez-vous ajouter ce script au PATH ? (oui/non) : "
+    read -r reponse
+    if [ "$(echo "$reponse" | tr '[:upper:]' '[:lower:]')" = "oui" ]; then
+        echo "\n# Ajout du script pythenv au PATH" >> "$PROFILE_FILE"
+        echo "export PATH=\"$(dirname "$SCRIPT_PATH"):\$PATH\"" >> "$PROFILE_FILE"
+        show_success "✓ Le script a été ajouté au PATH. Les changements seront effectifs à la prochaine connexion."
+    fi
+fi
+
+# Activation de l'environnement virtuel
+show_notification "🔌 Activation de l'environnement virtuel..."
+source "$PROJET/$(basename "$PROJET")-venv/bin/activate" && show_success "✓ Environnement virtuel activé"
+
+# Lancement de VS Code
+show_success "✨ Projet créé avec succès ! Lancement de VS Code..."
+code "$PROJET"
