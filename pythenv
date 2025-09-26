@@ -110,7 +110,7 @@ show_spinner() {
 # Vérification des prérequis
 show_notification "🔍 Vérification des prérequis..."
 (command -v python3 >/dev/null 2>&1) || show_error "Python3 n'est pas installé"
-(command -v code >/dev/null 2>&1) || show_error "Visual Studio Code n'est pas installé"
+(command -v code-server >/dev/null 2>&1) || show_error "Visual Studio Code n'est pas installé"
 show_success "✓ Prérequis validés"
 
 # Vérification des paramètres
@@ -256,6 +256,18 @@ create_notebook_example() {
     "- Manipulation de données avec Pandas\n",
     "- Calculs numériques avec NumPy\n",
     "- Visualisation de données\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Installation in situ de librairie pour les graphes\n",
+    "%pip install matplotlib\n",
+    "import numpy as np\n",
+    "\n"
    ]
   },
   {
